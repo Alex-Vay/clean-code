@@ -222,7 +222,7 @@ public class TagsParser
             ConvertTagToTextTag(currentTag);
             return true;
         }
-        else if (IsTagNearNumber(prevTag, nextTag))
+        else if (IsTagNearNumber(prevTag, nextTag) || IsTagBetweenScapes(prevTag, nextTag))
         {
             ConvertTagToTextTag(currentTag);
             return true;
@@ -231,10 +231,10 @@ public class TagsParser
     }
 
     private static bool IsOpenTag(Tag prevTag, Tag nextTag) =>
-        prevTag.TagText == " " && nextTag.Type == TagType.Text && nextTag.TagText != " ";
+        prevTag.TagText == " " && nextTag.TagText != " ";
 
     private static bool IsCloseTag(Tag prevTag, Tag nextTag) =>
-        nextTag.TagText == " " && prevTag.Type == TagType.Text && prevTag.TagText != " ";
+        nextTag.TagText == " " && prevTag.TagText != " ";
 
     private static bool IsTagNearNumber(Tag prevTag, Tag nextTag) =>
         (char.IsDigit(nextTag.TagText[0]) && char.IsLetter(prevTag.TagText[0])) 
@@ -242,4 +242,7 @@ public class TagsParser
 
     private static bool IsTagPartOfWord(Tag prevTag, Tag nextTag) =>
         char.IsLetter(nextTag.TagText[0]) && char.IsLetter(prevTag.TagText[0]);
+
+    private static bool IsTagBetweenScapes(Tag prevTag, Tag nextTag) =>
+        nextTag.TagText == " " && prevTag.TagText == " ";
 }
