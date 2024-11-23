@@ -2,6 +2,7 @@
 
 public enum PairTokenType
 {
+    None,
     Single,
     Opening,
     Closing,

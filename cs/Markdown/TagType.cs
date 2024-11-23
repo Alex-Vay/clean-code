@@ -1,9 +1,11 @@
 ﻿namespace Markdown;
 
-public enum TokenType
+public enum TagType
 {
     Text,
     H1,
     Em,
     Strong,
+    Shield,
+    Link
 }

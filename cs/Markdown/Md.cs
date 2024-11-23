@@ -1,4 +1,5 @@
 ﻿using Markdown.Converters;
+using System.Text;
 
 namespace Markdown;
 
@@ -6,13 +7,20 @@ public class Md
 {
     public static string Render(string text)
     {
-        var htmlConverter = new MarkdownToHtmlConverter();
-        var htmlText = htmlConverter.Convert(GetTextTokens(text);
-        return htmlText;
+        var renderedText = new StringBuilder();
+        var paragraphs = text.Split("\n");
+        for (var i = 0; i < paragraphs.Count(); i++)
+        {
+            renderedText.Append(RenderParagraph(paragraphs[i]));
+            if (i < paragraphs.Count() - 1) renderedText.Append("\n");
+        }  
+        return renderedText.ToString();
     }
 
-    public static List<Token> GetTextTokens(string text)
+    private static StringBuilder RenderParagraph(string paragraph)
     {
-        return new List<Token>();
+        var tags = TagsParser.BuildTags(paragraph);
+        var conv = new MarkdownToHtmlConverter();
+        return conv.Convert(tags);
     }
 }
