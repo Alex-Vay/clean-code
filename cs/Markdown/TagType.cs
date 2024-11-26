@@ -6,6 +6,6 @@ public enum TagType
     H1,
     Em,
     Strong,
-    Shield,
+    Escaping,
     Link
 }

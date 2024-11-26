@@ -7,9 +7,8 @@ public class TagsParser
         { TagType.H1, false },
         { TagType.Strong, false },
         { TagType.Em, false },
-        { TagType.Shield, true },
+        { TagType.Escaping, true },
     };
-    private static TagType[] pairTags = { TagType.Strong, TagType.Em };
 
     public static List<Tag> BuildTags(string paragraph)
     {
@@ -22,11 +21,11 @@ public class TagsParser
 
     private static void ProcessCharsInsideWords(List<Tag> tags)
     {
-        var tagsTypesTuple = new Dictionary<TagType, List<(int, bool, int)>>(); //в листе, последовательно, номер слова, полностью в слове, индекс в листе тегов
+        var tagsTypesTuple = new Dictionary<TagType, List<(int, bool, int)>>();
         tagsTypesTuple[TagType.Strong] = new List<(int, bool, int)>();
         tagsTypesTuple[TagType.Em] = new List<(int, bool, int)>();
         var worldCount = 0;
-        for (int i = 0; i < tags.Count; i++)
+        for (var i = 0; i < tags.Count; i++)
         {
             var currentTag = tags[i];
             if (currentTag.TagText == " ") worldCount++;
@@ -83,11 +82,11 @@ public class TagsParser
     private static List<Tag> GetAllTags(string paragraph)
     {
         var tagList = new List<Tag>();
-        for (int i = 0; i < paragraph.Length; i++)
+        for (var i = 0; i < paragraph.Length; i++)
         {
             var tag = GetTagFromChar(paragraph, i);
             i += tag.TagText.Length - 1;
-            if (tag.Type == TagType.Shield) i++;
+            if (tag.Type == TagType.Escaping) i++;
             tagList.Add(tag);
         }
         return tagList;
@@ -110,7 +109,7 @@ public class TagsParser
                 if (pos + 1 < paragraph.Length)
                 {
                     symb = paragraph[pos + 1].ToString();
-                    if ("_#\\[]".Contains(symb)) return new Tag(TagType.Shield, PairTokenType.Completed, symb);
+                    if ("_#\\[]".Contains(symb)) return new Tag(TagType.Escaping, PairTokenType.Completed, symb);
                 }
                 return new Tag(TagType.Text, PairTokenType.None, currentCharInString);
             case '[':
@@ -130,10 +129,10 @@ public class TagsParser
     private static void ProcessTagsBorders(List<Tag> tags, TagType outsideTag, TagType insideTag)
     {
         var stack = new Stack<Tag>();
-        for (int i = 0; i < tags.Count; i++)
+        for (var i = 0; i < tags.Count; i++)
         {
             var currentTag = tags[i];
-            if (currentTag.Type == TagType.Shield || currentTag.Type == TagType.Link) 
+            if (currentTag.Type == TagType.Escaping || currentTag.Type == TagType.Link) 
                 continue;
             if (stack.Count > 0 && currentTag.Type != TagType.Text)
             {
@@ -184,7 +183,7 @@ public class TagsParser
     private static void RestoreTagOpenedDictionary()
     {
         foreach (var curTag in isTagOpened.Keys) isTagOpened[curTag] = false;
-        isTagOpened[TagType.Shield] = true;
+        isTagOpened[TagType.Escaping] = true;
     }
 
     private static bool IsPairTags(Tag lastTag, Tag currentTag)
@@ -222,7 +221,7 @@ public class TagsParser
             ConvertTagToTextTag(currentTag);
             return true;
         }
-        else if (IsTagNearNumber(prevTag, nextTag) || IsTagBetweenScapes(prevTag, nextTag))
+        else if (IsTagNearNumber(prevTag, nextTag) || IsTagBetweenSpaces(prevTag, nextTag))
         {
             ConvertTagToTextTag(currentTag);
             return true;
@@ -243,6 +242,6 @@ public class TagsParser
     private static bool IsTagPartOfWord(Tag prevTag, Tag nextTag) =>
         char.IsLetter(nextTag.TagText[0]) && char.IsLetter(prevTag.TagText[0]);
 
-    private static bool IsTagBetweenScapes(Tag prevTag, Tag nextTag) =>
+    private static bool IsTagBetweenSpaces(Tag prevTag, Tag nextTag) =>
         nextTag.TagText == " " && prevTag.TagText == " ";
 }
