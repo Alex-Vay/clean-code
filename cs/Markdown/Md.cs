@@ -3,16 +3,16 @@ using System.Text;
 
 namespace Markdown;
 
-public class Md
+public static class Md
 {
     public static string Render(string text)
     {
         var renderedText = new StringBuilder();
         var paragraphs = text.Split("\n");
-        for (var i = 0; i < paragraphs.Count(); i++)
+        for (var i = 0; i < paragraphs.Length; i++)
         {
             renderedText.Append(RenderParagraph(paragraphs[i]));
-            if (i < paragraphs.Count() - 1) renderedText.Append("\n");
+            if (i < paragraphs.Length - 1) renderedText.Append('\n');
         }  
         return renderedText.ToString();
     }
@@ -20,7 +20,6 @@ public class Md
     private static StringBuilder RenderParagraph(string paragraph)
     {
         var tags = TagsParser.BuildTags(paragraph);
-        var conv = new MarkdownToHtmlConverter();
-        return conv.Convert(tags);
+        return MarkdownToHtmlConverter.Convert(tags);
     }
 }

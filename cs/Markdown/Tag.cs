@@ -1,15 +1,8 @@
 ﻿namespace Markdown;
 
-public class Tag
+public class Tag(TagType type, PairTokenType pairType, string text)
 {
-    public TagType Type { get; set; }
-    public PairTokenType PairType { get; set; }
-    public string TagText { get; set; }
-
-    public Tag(TagType type, PairTokenType pairType, string text)
-    {
-        Type = type;
-        PairType = pairType;
-        TagText = text;
-    }
+    public TagType Type { get; set; } = type;
+    public PairTokenType PairType { get; set; } = pairType;
+    public string TagText { get; set; } = text;
 }

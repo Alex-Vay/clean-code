@@ -2,7 +2,7 @@
 
 namespace Markdown.Converters;
 
-public class MarkdownToHtmlConverter
+public static class MarkdownToHtmlConverter
 {
     private static readonly Dictionary<TagType, string> tagToString = new()
     {
@@ -12,28 +12,27 @@ public class MarkdownToHtmlConverter
         { TagType.H1, "h1" }
     };
 
-    public StringBuilder Convert(List<Tag> tokens)
+    public static StringBuilder Convert(List<Tag> tokens)
     {
         var st = new StringBuilder();
-        for (int i = 0; i < tokens.Count; i++)
+        foreach (var tok in tokens)
         {
-            var tok = tokens[i];
             if (tok.Type == TagType.Text)
                 st.Append(tok.TagText);
             else
             {
-                switch (tok.PairType)
+                switch (tok)
                 {
-                    case PairTokenType.Opening:
+                    case { PairType: PairTokenType.Opening }:
                         st.Append($"<{tagToString[tok.Type]}>");
                         break; 
-                    case PairTokenType.Closing:
+                    case { PairType: PairTokenType.Closing }:
                         st.Append($"</{tagToString[tok.Type]}>");
                         break;
-                    case PairTokenType.Completed:
+                    case { PairType: PairTokenType.Completed }:
                         st.Append($"{tok.TagText}");
                         break;
-                    case PairTokenType.Single:
+                    case { PairType: PairTokenType.Single }:
                         st.Append(GetLink(tok));
                         break;
                 }  
@@ -42,7 +41,7 @@ public class MarkdownToHtmlConverter
         return st;
     }
 
-    private StringBuilder GetLink(Tag link)
+    private static StringBuilder GetLink(Tag link)
     {
         var st = new StringBuilder();
         var linkExp = link.TagText;

@@ -1,8 +1,8 @@
 ﻿namespace Markdown;
 
-public class TagsParser
+public static class TagsParser
 {
-    private static Dictionary<TagType, bool>  isTagOpened = new Dictionary<TagType, bool>() 
+    private static readonly Dictionary<TagType, bool>  IsTagOpened = new()
     { 
         { TagType.H1, false },
         { TagType.Strong, false },
@@ -21,35 +21,37 @@ public class TagsParser
 
     private static void ProcessCharsInsideWords(List<Tag> tags)
     {
-        var tagsTypesTuple = new Dictionary<TagType, List<(int, bool, int)>>();
-        tagsTypesTuple[TagType.Strong] = new List<(int, bool, int)>();
-        tagsTypesTuple[TagType.Em] = new List<(int, bool, int)>();
-        var worldCount = 0;
+        var tagInformationByPairType = new Dictionary<TagType, List<TagInWordInformation>>
+        {
+            [TagType.Strong] = [],
+            [TagType.Em] = []
+        };
+        var worldIndex = 0;
         for (var i = 0; i < tags.Count; i++)
         {
             var currentTag = tags[i];
-            if (currentTag.TagText == " ") worldCount++;
-            if (tagsTypesTuple.Keys.Contains(currentTag.Type))
+            if (IsSpaceChar(currentTag)) 
+                worldIndex++;
+            if (tagInformationByPairType.ContainsKey(currentTag.Type))
             {
-                if (i - 1 > 0 && i + 1 < tags.Count)
-                    tagsTypesTuple[currentTag.Type].Add((worldCount, IsTagPartOfWord(tags[i - 1], tags[i + 1]), i));
-                else
-                    tagsTypesTuple[currentTag.Type].Add((worldCount, false, i));
+                tagInformationByPairType[currentTag.Type].Add(
+                    IsTagInListBounds(tags, i)
+                    ? new TagInWordInformation(worldIndex, IsTagPartOfWord(tags[i - 1], tags[i + 1]), i)
+                    : new TagInWordInformation(worldIndex, false, i));
             }
         }
-        foreach (var tagName in tagsTypesTuple.Keys)
+        foreach (var tagsList in tagInformationByPairType.Keys.Select(tagName => tagInformationByPairType[tagName]))
         {
-            var tagsList = tagsTypesTuple[tagName];
             for (var i = 0; i < tagsList.Count - 1; i++)
             {
                 var currentTag = tagsList[i];
                 var nextTag = tagsList[i + 1];
-                if (currentTag.Item1 != nextTag.Item1)
+                if (IsTagsInOneWord(currentTag, nextTag))
                 {
-                    if (currentTag.Item2)
-                        ConvertTagToTextTag(tags[currentTag.Item3]);
-                    if (nextTag.Item2)
-                        ConvertTagToTextTag(tags[nextTag.Item3]);
+                    if (currentTag.IsTagInWord)
+                        ConvertTagToTextTag(tags[currentTag.TagListIndex]);
+                    if (nextTag.IsTagInWord)
+                        ConvertTagToTextTag(tags[nextTag.TagListIndex]);
                 }
                 else i++;
             }
@@ -70,12 +72,10 @@ public class TagsParser
         for (var i = 0; i < openTags.Count; i++)
         {
             var stringBetweenTags = tags[openTags[i].ind..closeTags[i].ind];
-            if (!stringBetweenTags.Any(x => char.IsLetter(x.TagText[0]) || char.IsDigit(x.TagText[0])
-                || x.TagText.Length > 2))
-            {
-                ConvertTagToTextTag(openTags[i].tag);
-                ConvertTagToTextTag(closeTags[i].tag);
-            }
+            if (IsTextInString(stringBetweenTags)) 
+                continue;
+            ConvertTagToTextTag(openTags[i].tag);
+            ConvertTagToTextTag(closeTags[i].tag);
         }
     }
 
@@ -100,18 +100,16 @@ public class TagsParser
             case '#':
                 return new Tag(TagType.H1, PairTokenType.Opening, currentCharInString + " ");
             case '_':
-                if (pos + 1 < paragraph.Length && paragraph[pos + 1] == '_')
+                if (IsSymbolAfterCurrent(paragraph, pos) && paragraph[pos + 1] == '_')
                     return new Tag(TagType.Strong, PairTokenType.Opening, paragraph.Substring(pos, 2));
-                else
-                    return new Tag(TagType.Em, PairTokenType.Opening, currentCharInString);
+                return new Tag(TagType.Em, PairTokenType.Opening, currentCharInString);
             case '\\':
-                string symb = null;
-                if (pos + 1 < paragraph.Length)
-                {
-                    symb = paragraph[pos + 1].ToString();
-                    if ("_#\\[]".Contains(symb)) return new Tag(TagType.Escaping, PairTokenType.Completed, symb);
-                }
-                return new Tag(TagType.Text, PairTokenType.None, currentCharInString);
+                if (!IsSymbolAfterCurrent(paragraph, pos)) 
+                    return new Tag(TagType.Text, PairTokenType.None, currentCharInString);
+                var symb = paragraph[pos + 1].ToString();
+                return "_#\\[]".Contains(symb) 
+                    ? new Tag(TagType.Escaping, PairTokenType.Completed, symb) 
+                    : new Tag(TagType.Text, PairTokenType.None, currentCharInString);
             case '[':
                 var linkTextEnd = paragraph.IndexOf(']', pos);
                 var linkStart = paragraph.IndexOf('(', pos);
@@ -132,15 +130,17 @@ public class TagsParser
         for (var i = 0; i < tags.Count; i++)
         {
             var currentTag = tags[i];
-            if (currentTag.Type == TagType.Escaping || currentTag.Type == TagType.Link) 
+            if (IsUnprocessedTag(currentTag)) 
                 continue;
-            if (stack.Count > 0 && currentTag.Type != TagType.Text)
+            if (stack.Count > 0 && !IsTextTag(currentTag))
             {
-                if (IsNotTag(tags, i)) continue;
-                if (isTagOpened[currentTag.Type])
+                if (IsNotTag(tags, i)) 
+                    continue;
+                if (IsTagOpened[currentTag.Type])
                 {
                     var lastTag = stack.Pop();
-                    if (IsPairTags(lastTag, currentTag)) continue;
+                    if (IsPairTags(lastTag, currentTag)) 
+                        continue;
                     ConvertTagToTextTag(currentTag);
                     while (stack.Count > 0)
                     {
@@ -148,17 +148,15 @@ public class TagsParser
                         ConvertTagToTextTag(lastTag);
                     }
                 }
-                else if (stack.Last().Type == outsideTag && currentTag.Type == insideTag)
+                else if (IsIncorrectTagsNesting(stack, currentTag, outsideTag, insideTag))
                     ConvertTagToTextTag(currentTag);
             }
-            if (currentTag.Type != TagType.Text)
-            {
-                if (IsNotTag(tags, i)) continue;
-                stack.Push(currentTag);
-                isTagOpened[currentTag.Type] = true;
-            }
+            if (IsTextTag(currentTag) || IsNotTag(tags, i)) 
+                continue;
+            stack.Push(currentTag);
+            IsTagOpened[currentTag.Type] = true;
         }
-        CleanStackOfRemainingTags(stack, tags); ;
+        CleanStackOfRemainingTags(stack, tags);
         RestoreTagOpenedDictionary();
     }
 
@@ -166,11 +164,11 @@ public class TagsParser
     {
         while (stack.Count > 0)
         {
-            var z = stack.Pop();
-            if (z.Type == TagType.H1)
+            var currentTag = stack.Pop();
+            if (currentTag.Type == TagType.H1)
                 tags.Add(new Tag(TagType.H1, PairTokenType.Closing, "#"));
-            else if (z.PairType != PairTokenType.Single)
-                ConvertTagToTextTag(z);
+            else if (currentTag.PairType != PairTokenType.Single)
+                ConvertTagToTextTag(currentTag);
         }
     }
 
@@ -182,8 +180,8 @@ public class TagsParser
 
     private static void RestoreTagOpenedDictionary()
     {
-        foreach (var curTag in isTagOpened.Keys) isTagOpened[curTag] = false;
-        isTagOpened[TagType.Escaping] = true;
+        foreach (var curTag in IsTagOpened.Keys) IsTagOpened[curTag] = false;
+        IsTagOpened[TagType.Escaping] = true;
     }
 
     private static bool IsPairTags(Tag lastTag, Tag currentTag)
@@ -191,15 +189,12 @@ public class TagsParser
         if (lastTag.Type == currentTag.Type)
         {
             currentTag.PairType = PairTokenType.Closing;
-            isTagOpened[currentTag.Type] = false;
+            IsTagOpened[currentTag.Type] = false;
             return true;
         }
-        else
-        {
-            ConvertTagToTextTag(lastTag);
-            isTagOpened[currentTag.Type] = false;
-            return false;
-        }
+        ConvertTagToTextTag(lastTag);
+        IsTagOpened[currentTag.Type] = false;
+        return false;
     }
 
     private static bool IsNotTag(List<Tag> tags, int pos)
@@ -207,21 +202,14 @@ public class TagsParser
         var currentTag = tags[pos];
         var prevPos = pos - 1;
         var nextPos = pos + 1;
-        if (prevPos < 0 || nextPos > tags.Count - 1)
+        if (!IsTagInListBounds(tags, pos))
             return false;
         var prevTag = tags[prevPos];
         var nextTag = tags[nextPos];
-        if (IsOpenTag(prevTag, nextTag) && isTagOpened[currentTag.Type])
-        {
-            ConvertTagToTextTag(currentTag);
-            return true;
-        }
-        else if (IsCloseTag(prevTag, nextTag) && !isTagOpened[currentTag.Type])
-        {
-            ConvertTagToTextTag(currentTag);
-            return true;
-        }
-        else if (IsTagNearNumber(prevTag, nextTag) || IsTagBetweenSpaces(prevTag, nextTag))
+        if (IsNotFirstOpenTag(currentTag, prevTag, nextTag)
+            || IsNotCloseTagAfterOpenTag(currentTag, prevTag, nextTag)
+            || IsTagNearNumber(prevTag, nextTag)
+            || IsTagBetweenSpaces(prevTag, nextTag))
         {
             ConvertTagToTextTag(currentTag);
             return true;
@@ -230,10 +218,10 @@ public class TagsParser
     }
 
     private static bool IsOpenTag(Tag prevTag, Tag nextTag) =>
-        prevTag.TagText == " " && nextTag.TagText != " ";
+        IsSpaceChar(prevTag) && !IsSpaceChar(nextTag);
 
     private static bool IsCloseTag(Tag prevTag, Tag nextTag) =>
-        nextTag.TagText == " " && prevTag.TagText != " ";
+        IsSpaceChar(nextTag) && !IsSpaceChar(prevTag);
 
     private static bool IsTagNearNumber(Tag prevTag, Tag nextTag) =>
         (char.IsDigit(nextTag.TagText[0]) && char.IsLetter(prevTag.TagText[0])) 
@@ -243,5 +231,44 @@ public class TagsParser
         char.IsLetter(nextTag.TagText[0]) && char.IsLetter(prevTag.TagText[0]);
 
     private static bool IsTagBetweenSpaces(Tag prevTag, Tag nextTag) =>
-        nextTag.TagText == " " && prevTag.TagText == " ";
+        IsSpaceChar(nextTag) && IsSpaceChar(prevTag);
+    
+    private static bool IsSpaceChar(Tag tag) => tag.TagText == " ";
+
+    private static bool IsTagInListBounds(List<Tag> tags, int pos) => pos - 1 > 0 && pos + 1 < tags.Count;
+
+    private static bool IsTagsInOneWord(TagInWordInformation currentTag, TagInWordInformation nextTag) =>
+        currentTag.WordWithTagIndex != nextTag.WordWithTagIndex;
+
+    private static bool IsSymbolAfterCurrent(string text, int pos) => pos + 1 < text.Length;
+
+    private static bool IsUnprocessedTag(Tag tag) => tag.Type == TagType.Escaping || tag.Type == TagType.Link;
+    
+    private static bool IsTextTag(Tag tag) => tag.Type == TagType.Text;
+
+    private static bool IsTextInString(List<Tag> stringBetweenTags) => stringBetweenTags.Any(x =>
+        char.IsLetter(x.TagText[0]) || char.IsDigit(x.TagText[0])
+                                    || x.TagText.Length > 2);
+    
+    private static bool IsNotFirstOpenTag(Tag currentTag, Tag prevTag, Tag nextTag) =>
+        IsOpenTag(prevTag, nextTag) && IsTagOpened[currentTag.Type];
+    
+    private static bool IsNotCloseTagAfterOpenTag(Tag currentTag, Tag prevTag, Tag nextTag) =>
+        IsCloseTag(prevTag, nextTag) && !IsTagOpened[currentTag.Type];
+
+    private static bool IsIncorrectTagsNesting(
+        Stack<Tag> stack, 
+        Tag currentTag,  
+        TagType outsideTag, 
+        TagType insideTag
+        ) => stack.Last().Type == outsideTag && currentTag.Type == insideTag;
 }
+
+
+public class TagInWordInformation(int wordWithTagIndex, bool isTagInWord, int tagListIndex)
+{
+    public int WordWithTagIndex { get; set; } = wordWithTagIndex;
+    public bool IsTagInWord { get; set; } = isTagInWord;
+    public int TagListIndex { get; set; } = tagListIndex;
+}
+
