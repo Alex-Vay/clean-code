@@ -19,7 +19,8 @@ public static class Md
 
     private static StringBuilder RenderParagraph(string paragraph)
     {
-        var tags = TagsParser.BuildTags(paragraph);
+        var tagParser = new TagsParser(paragraph);
+        var tags = tagParser.BuildTags();
         return MarkdownToHtmlConverter.Convert(tags);
     }
 }
