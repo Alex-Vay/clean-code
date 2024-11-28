@@ -2,8 +2,8 @@
 
 public class TagsParser(string paragraph)
 {
-    private string Paragraph { get; set; } = paragraph;
     private int currentPos = 0;
+    private List<Tag> tags = new List<Tag>();
 
     private readonly Dictionary<TagType, bool>  isTagOpened = new()
     { 
@@ -15,14 +15,14 @@ public class TagsParser(string paragraph)
 
     public List<Tag> BuildTags()
     {
-        var tags = GetAllTags(Paragraph);
-        ProcessCharsInsideWords(tags);
-        ProcessTagsBorders(tags, TagType.Em, TagType.Strong);
-        CleanEmptyTagsInLine(tags);
+        GetAllTags();
+        ProcessCharsInsideWords();
+        ProcessTagsBorders(TagType.Em, TagType.Strong);
+        CleanEmptyTagsInLine();
         return tags;
     }
 
-    private void ProcessCharsInsideWords(List<Tag> tags)
+    private void ProcessCharsInsideWords()
     {
         var tagInformationByPairType = new Dictionary<TagType, List<TagInWordInformation>>
         {
@@ -37,29 +37,26 @@ public class TagsParser(string paragraph)
                 wordIndex++;
             if (!tagInformationByPairType.ContainsKey(currentTag.Type)) 
                 continue;
-            var tag = GetTagInWordInformation(tags, wordIndex, i);
+            var tag = GetTagInWordInformation(wordIndex, i);
             tagInformationByPairType[currentTag.Type].Add(tag);
         }
         foreach (var tagsList in tagInformationByPairType.Keys.Select(tagName => tagInformationByPairType[tagName]))
         {
             while (currentPos < tagsList.Count - 1)
             {
-                CheckAndProcessUnderlineOrEmTag(tags, tagsList, currentPos);
+                CheckAndProcessUnderlineOrEmTag(tagsList);
                 currentPos++;
             }
             currentPos = 0;
         }
     }
 
-    private TagInWordInformation? GetTagInWordInformation(List<Tag> tags, int wordIndex, int pos) =>
-        IsTagInListBounds(tags, pos)
+    private TagInWordInformation? GetTagInWordInformation(int wordIndex, int pos) =>
+        IsTagInListBounds(pos)
         ? new TagInWordInformation(wordIndex, IsTagPartOfWord(tags[pos - 1], tags[pos + 1]), pos)
         : new TagInWordInformation(wordIndex, false, pos);
 
-    private void CheckAndProcessUnderlineOrEmTag(
-        List<Tag> tags, 
-        List<TagInWordInformation> tagsList, 
-        int pos)
+    private void CheckAndProcessUnderlineOrEmTag(List<TagInWordInformation> tagsList)
     {
         var currentTag = tagsList[currentPos];
         var nextTag = tagsList[currentPos + 1];
@@ -74,7 +71,7 @@ public class TagsParser(string paragraph)
             currentPos++;
     }
 
-    private void CleanEmptyTagsInLine(List<Tag> tags) 
+    private void CleanEmptyTagsInLine() 
     {
         var openTags = tags
             .Select((tag, ind) => (tag, ind))
@@ -94,17 +91,15 @@ public class TagsParser(string paragraph)
         }
     }
 
-    private List<Tag> GetAllTags(string paragraph)
+    private void GetAllTags()
     {
-        var tagList = new List<Tag>();
         while (currentPos < paragraph.Length)
         {
-            var tag = GetTagFromChar(paragraph, currentPos);
+            var tag = GetTagFromChar();
             GetNextPos(tag);
-            tagList.Add(tag);
+            tags.Add(tag);
         }
         currentPos = 0;
-        return tagList;
     }
 
     private void GetNextPos(Tag tag)
@@ -114,44 +109,50 @@ public class TagsParser(string paragraph)
             currentPos++;
     }
 
-    private Tag GetTagFromChar(string paragraph, int pos) => paragraph[pos] switch
+    private bool IsNextCharIs(params char[] chars)
     {
-        '#' => new Tag(TagType.H1, PairTokenType.Opening, $"{paragraph[pos]} "),
-        '_' => ParseEmOrStrongTag(paragraph, pos),
-        '\\' => ParseEscapingTag(paragraph, pos),
-        '[' => ParseLinkTag(paragraph, pos),
-        _ => new Tag(TagType.Text, PairTokenType.None, $"{paragraph[pos]}")
+        var nenxChar = paragraph[currentPos + 1];
+        return chars.Contains(nenxChar);
+    }
+
+    private Tag GetTagFromChar() => paragraph[currentPos] switch
+    {
+        '#' => Tag.Create(TagType.H1, PairTokenType.Opening, paragraph[currentPos] + " "),
+        '_' => ParseEmOrStrongTag(),
+        '\\' => ParseEscapingTag(),
+        '[' => ParseLinkTag(),
+        _ => Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos])
     };
         
-    private Tag ParseEmOrStrongTag(string paragraph, int pos) =>
-        (IsEndOfParagraph(paragraph, pos) && paragraph[pos + 1] == '_')
-        ? new Tag(TagType.Strong, PairTokenType.Opening, paragraph.Substring(pos, 2))
-        : new Tag(TagType.Em, PairTokenType.Opening, $"{paragraph[pos]}");
+    private Tag ParseEmOrStrongTag() =>
+        (IsEndOfParagraph() && IsNextCharIs('_'))
+        ? Tag.Create(TagType.Strong, PairTokenType.Opening, paragraph.Substring(currentPos, 2))
+        : Tag.Create(TagType.Em, PairTokenType.Opening, paragraph[currentPos]);
 
-    private Tag ParseEscapingTag(string paragraph, int pos)
+    private Tag ParseEscapingTag()
     {
-        var currentCharInString = $"{paragraph[pos]}";
-        if (!IsEndOfParagraph(paragraph, pos))
-            return new Tag(TagType.Text, PairTokenType.None, currentCharInString);
-        var symb = paragraph[pos + 1].ToString();
-        return "_#\\[]".Contains(symb)
-            ? new Tag(TagType.Escaping, PairTokenType.Completed, symb)
-            : new Tag(TagType.Text, PairTokenType.None, currentCharInString);
+        if (!IsEndOfParagraph())
+            return Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
+        
+        return IsNextCharIs('_', '#', '\\', '[', ']')
+            ? Tag.Create(TagType.Escaping, PairTokenType.Completed, paragraph[currentPos + 1])
+            : Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
     }
 
-    private Tag ParseLinkTag(string paragraph, int pos)
+    private Tag ParseLinkTag()
     {
-        var linkTextEnd = paragraph.IndexOf(']', pos);
-        var linkStart = paragraph.IndexOf('(', pos);
-        var linkEnd = paragraph.IndexOf(')', pos);
-        var slash = paragraph.IndexOf('\\', pos);
+        var linkTextEnd = paragraph.IndexOf(']', currentPos);
+        var linkStart = paragraph.IndexOf('(', currentPos);
+        var linkEnd = paragraph.IndexOf(')', currentPos);
+        var slash = paragraph.IndexOf('\\', currentPos);
         if (linkTextEnd != -1 && linkStart != -1 && linkEnd != -1 && linkTextEnd + 1 == linkStart && linkEnd > linkStart && slash == -1
-            && pos + 1 != linkTextEnd)
-            return new Tag(TagType.Link, PairTokenType.Single, paragraph.Substring(pos, linkEnd - pos + 1));
-        return new Tag(TagType.Text, PairTokenType.None, $"{paragraph[pos]}");
+            && currentPos + 1 != linkTextEnd)
+            return Tag.Create(TagType.Link, PairTokenType.Single, paragraph.Substring(currentPos, linkEnd - currentPos + 1));
+        
+        return Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
     }
 
-    private void ProcessTagsBorders(List<Tag> tags, TagType outsideTag, TagType insideTag)
+    private void ProcessTagsBorders(TagType outsideTag, TagType insideTag)
     {
         var stack = new Stack<Tag>();
         for (var i = 0; i < tags.Count; i++)
@@ -161,7 +162,7 @@ public class TagsParser(string paragraph)
                 continue;
             if (stack.Count > 0 && !IsTextTag(currentTag))
             {
-                if (IsNotTag(tags, i)) 
+                if (IsNotTag(i)) 
                     continue;
                 if (isTagOpened[currentTag.Type])
                 {
@@ -178,21 +179,21 @@ public class TagsParser(string paragraph)
                 else if (IsIncorrectTagsNesting(stack, currentTag, outsideTag, insideTag))
                     ConvertTagToTextTag(currentTag);
             }
-            if (IsTextTag(currentTag) || IsNotTag(tags, i)) 
+            if (IsTextTag(currentTag) || IsNotTag(i)) 
                 continue;
             stack.Push(currentTag);
             isTagOpened[currentTag.Type] = true;
         }
-        CleanStackOfRemainingTags(stack, tags);
+        CleanStackOfRemainingTags(stack);
     }
 
-    private void CleanStackOfRemainingTags(Stack<Tag> stack, List<Tag> tags)
+    private void CleanStackOfRemainingTags(Stack<Tag> stack)
     {
         while (stack.Count > 0)
         {
             var currentTag = stack.Pop();
             if (currentTag.Type == TagType.H1)
-                tags.Add(new Tag(TagType.H1, PairTokenType.Closing, "#"));
+                tags.Add(Tag.Create(TagType.H1, PairTokenType.Closing, "#"));
             else if (currentTag.PairType != PairTokenType.Single)
             {
                 isTagOpened[currentTag.Type] = false;
@@ -220,12 +221,12 @@ public class TagsParser(string paragraph)
         return false;
     }
 
-    private bool IsNotTag(List<Tag> tags, int pos)
+    private bool IsNotTag(int pos)
     {
         var currentTag = tags[pos];
         var prevPos = pos - 1;
         var nextPos = pos + 1;
-        if (!IsTagInListBounds(tags, pos))
+        if (!IsTagInListBounds(pos))
             return false;
         var prevTag = tags[prevPos];
         var nextTag = tags[nextPos];
@@ -258,12 +259,12 @@ public class TagsParser(string paragraph)
     
     private bool IsSpaceChar(Tag tag) => tag.TagText == " ";
 
-    private bool IsTagInListBounds(List<Tag> tags, int pos) => pos - 1 > 0 && pos + 1 < tags.Count;
+    private bool IsTagInListBounds(int pos) => pos - 1 > 0 && pos + 1 < tags.Count;
 
     private bool IsTagsInOneWord(TagInWordInformation currentTag, TagInWordInformation nextTag) =>
         currentTag.WordWithTagIndex != nextTag.WordWithTagIndex;
 
-    private bool IsEndOfParagraph(string text, int pos) => pos + 1 < text.Length;
+    private bool IsEndOfParagraph() => currentPos + 1 < paragraph.Length;
 
     private bool IsUnprocessedTag(Tag tag) => tag.Type == TagType.Escaping || tag.Type == TagType.Link;
     
