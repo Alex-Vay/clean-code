@@ -40,6 +40,7 @@ public class TagsParser(string paragraph)
             var tag = GetTagInWordInformation(wordIndex, i);
             tagInformationByPairType[currentTag.Type].Add(tag);
         }
+
         foreach (var tagsList in tagInformationByPairType.Keys.Select(tagName => tagInformationByPairType[tagName]))
         {
             while (currentPos < tagsList.Count - 1)
@@ -81,6 +82,7 @@ public class TagsParser(string paragraph)
             .Select((tag, ind) => (tag, ind))
             .Where(x => x.tag.PairType == PairTokenType.Closing)
             .ToList();
+
         for (var i = 0; i < openTags.Count; i++)
         {
             var stringBetweenTags = tags[openTags[i].ind..closeTags[i].ind];
@@ -160,10 +162,12 @@ public class TagsParser(string paragraph)
             var currentTag = tags[i];
             if (IsUnprocessedTag(currentTag)) 
                 continue;
+
             if (stack.Count > 0 && !IsTextTag(currentTag))
             {
                 if (IsNotTag(i)) 
                     continue;
+
                 if (isTagOpened[currentTag.Type])
                 {
                     var lastTag = stack.Pop();
@@ -179,6 +183,7 @@ public class TagsParser(string paragraph)
                 else if (IsIncorrectTagsNesting(stack, currentTag, outsideTag, insideTag))
                     ConvertTagToTextTag(currentTag);
             }
+
             if (IsTextTag(currentTag) || IsNotTag(i)) 
                 continue;
             stack.Push(currentTag);
