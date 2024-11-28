@@ -147,8 +147,8 @@ public class TagsParser(string paragraph)
         var linkStart = paragraph.IndexOf('(', currentPos);
         var linkEnd = paragraph.IndexOf(')', currentPos);
         var slash = paragraph.IndexOf('\\', currentPos);
-        if (linkTextEnd != -1 && linkStart != -1 && linkEnd != -1 && linkTextEnd + 1 == linkStart && linkEnd > linkStart && slash == -1
-            && currentPos + 1 != linkTextEnd)
+        if (linkStart == linkTextEnd + 1 && linkEnd > linkStart 
+            && slash == -1 && currentPos + 1 != linkTextEnd)
             return Tag.Create(TagType.Link, PairTokenType.Single, paragraph.Substring(currentPos, linkEnd - currentPos + 1));
         
         return Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
