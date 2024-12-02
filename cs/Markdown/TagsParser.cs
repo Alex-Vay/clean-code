@@ -43,6 +43,10 @@ public class TagsParser(string paragraph)
 
         foreach (var tagsList in tagInformationByPairType.Keys.Select(tagName => tagInformationByPairType[tagName]))
         {
+            if (tagsList.Count == 1)
+            {
+                ConvertTagToTextTag(tags[tagsList[0].TagListIndex]);
+            }
             while (currentPos < tagsList.Count - 1)
             {
                 CheckAndProcessUnderlineOrEmTag(tagsList);
@@ -119,13 +123,19 @@ public class TagsParser(string paragraph)
 
     private Tag GetTagFromChar() => paragraph[currentPos] switch
     {
-        '#' => Tag.Create(TagType.H1, PairTokenType.Opening, paragraph[currentPos] + " "),
+        '#' => ParseH1Tag(),
         '_' => ParseEmOrStrongTag(),
         '\\' => ParseEscapingTag(),
         '[' => ParseLinkTag(),
         _ => Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos])
     };
-        
+
+    private Tag ParseH1Tag() =>
+        (currentPos == 0 && paragraph[currentPos + 1] == ' ')
+        ? Tag.Create(TagType.H1, PairTokenType.Opening, paragraph[currentPos] + " ")
+        : Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
+
+
     private Tag ParseEmOrStrongTag() =>
         (IsEndOfParagraph() && IsNextCharIs('_'))
         ? Tag.Create(TagType.Strong, PairTokenType.Opening, paragraph.Substring(currentPos, 2))
@@ -147,8 +157,12 @@ public class TagsParser(string paragraph)
         var linkStart = paragraph.IndexOf('(', currentPos);
         var linkEnd = paragraph.IndexOf(')', currentPos);
         var slash = paragraph.IndexOf('\\', currentPos);
-        if (linkStart == linkTextEnd + 1 && linkEnd > linkStart 
-            && slash == -1 && currentPos + 1 != linkTextEnd)
+        if (linkStart == linkTextEnd + 1 && linkEnd > linkStart
+            && (slash == -1 || (linkTextEnd - slash != 1
+            && currentPos - slash != 1
+            && linkStart - slash != 1
+            && linkEnd - slash != 1))
+            && linkEnd - linkStart > 1)
             return Tag.Create(TagType.Link, PairTokenType.Single, paragraph.Substring(currentPos, linkEnd - currentPos + 1));
         
         return Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
@@ -231,10 +245,18 @@ public class TagsParser(string paragraph)
         var currentTag = tags[pos];
         var prevPos = pos - 1;
         var nextPos = pos + 1;
-        if (!IsTagInListBounds(pos))
-            return false;
-        var prevTag = tags[prevPos];
-        var nextTag = tags[nextPos];
+        //if (!IsTagInListBounds(pos))
+        //    return false; 
+        Tag prevTag, nextTag;
+        if (!(pos - 1 > 0))
+            prevTag = Tag.Create(TagType.Text, PairTokenType.None, "/");
+        else
+            prevTag = tags[prevPos];
+        if (!(pos + 1 < tags.Count))
+            nextTag = Tag.Create(TagType.Text, PairTokenType.None, "/");
+        else
+            nextTag = tags[nextPos];
+        //var nextTag = tags[nextPos];
         if (IsNotFirstOpenTag(currentTag, prevTag, nextTag)
             || IsNotCloseTagAfterOpenTag(currentTag, prevTag, nextTag)
             || IsTagNearNumber(prevTag, nextTag)

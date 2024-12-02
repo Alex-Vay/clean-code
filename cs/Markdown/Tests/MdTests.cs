@@ -35,7 +35,12 @@ public class MdTests
         new TestCaseData("[l](https://yandex.ru/ \"F\")", "<a href=\"https://yandex.ru/\" title=\"F\">l</a>").SetName("Text_LinkWithComment_ConvertToHtml"),
         new TestCaseData("[l](https://yandex.ru/)", "<a href=\"https://yandex.ru/\">l</a>").SetName("Text_WithSimpleLink_ConvertToHtml"),
         new TestCaseData("# Заголовок _[l](https://yandex.ru/)_",
-            "<h1>Заголовок <em><a href=\"https://yandex.ru/\">l</a></em></h1>").SetName("Text_WithMoreDifferentTags_ConvertToHtml")
+            "<h1>Заголовок <em><a href=\"https://yandex.ru/\">l</a></em></h1>").SetName("Text_WithMoreDifferentTags_ConvertToHtml"),
+        new TestCaseData("[](https://yandex.ru/)", "<a href=\"https://yandex.ru/\"></a>").SetName("Text_WithLinkEmptyWord_ConvertToHtml"),
+        new TestCaseData(@"[\\](https://yandex.ru/)", "<a href=\"https://yandex.ru/\">\\\\</a>").SetName("Text_WittBackslashInLinkWord_ConvertToHtml"),
+        new TestCaseData(@"\__жирный_", "_<em>жирный</em>").SetName("Text_WithFakeStrongTag_ConvertToHtml"),
+       new TestCaseData("# заго#ловок", "<h1>заго#ловок</h1>").SetName("Text_WithFakeH1Tag2_ConvertToHtml"),
+        new TestCaseData("__непонятным тек_стом__", "<strong>непонятным тек_стом</strong>").SetName("Text_WithStrongTagWithUnderline_ConvertToHtml"),
     ];
 
     
@@ -55,7 +60,10 @@ public class MdTests
         new TestCaseData("[]()", "[]()").SetName("Text_WithEmptyLink_IgnoreConvert"),
         new TestCaseData(@"\[l](https://yandex.ru/)", "[l](https://yandex.ru/)").SetName("Text_WithEscaping[_IgnoreConvert"),
         new TestCaseData(@"[l\](https://yandex.ru/)", "[l](https://yandex.ru/)").SetName("Text_WithEscaping]_IgnoreConvert"),
-        new TestCaseData(@"[l]\(https://yandex.ru/)", @"[l]\(https://yandex.ru/)").SetName("Text_WithSymbolBetweenLinkParts_IgnoreConvert")
+        new TestCaseData(@"[l]\(https://yandex.ru/)", @"[l]\(https://yandex.ru/)").SetName("Text_WithSymbolBetweenLinkParts_IgnoreConvert"),
+        new TestCaseData("Не # заголовок", "Не # заголовок").SetName("Text_WithFakeH1Tag1_IgnoreConvert"),
+        new TestCaseData("#! Не съедай символ!", "#! Не съедай символ!").SetName("Text_WithH1MissingSymbol_IgnoreConvert"),
+        new TestCaseData("__ой __", "__ой __").SetName("Text_WithFakeStrongTag_IgnoreConvert")
     ];
     
     [Test]
