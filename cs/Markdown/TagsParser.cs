@@ -36,29 +36,10 @@ public class TagsParser(string paragraph)
                 var nextTag = (tagIndex + 1 < tagsList.Count)
                     ? tagsList[tagIndex + 1]
                     : null;
-                if (IsUnderlineOrEmTag(currentTag, nextTag))
+                if (IsEmTags(currentTag, nextTag))
                     tagIndex++;
             }
         }
-    }
-
-    private static bool IsUnderlineOrEmTag(
-        TagInWordInformation currentTag,
-        TagInWordInformation? nextTag
-        )
-    {
-        nextTag = nextTag == null
-                    ? new TagInWordInformation(null, false, CreateDefaultTextTag())
-                    : nextTag;
-        if (IsTagsInOneWord(currentTag, nextTag))
-        {
-            if (currentTag.IsTagInWord)
-                ConvertTagToTextTag(currentTag.Tag);
-            if (nextTag.IsTagInWord)
-                ConvertTagToTextTag(nextTag.Tag);
-            return false;
-        }
-        return true;
     }
            
     private List<TagInWordInformation> CreateTagInWorldInfoDict(List<TagType> tagTypes)
@@ -162,9 +143,6 @@ public class TagsParser(string paragraph)
     private Tag CreateCurrentPosTextTag() =>
         Tag.Create(TagType.Text, PairTokenType.None, paragraph[currentPos]);
 
-    private static Tag CreateDefaultTextTag() =>
-        Tag.Create(TagType.Text, PairTokenType.None, "/");
-
     private Tag ParseLinkTag()
     {
         var linkTextEnd = paragraph.IndexOf(']', currentPos);
@@ -196,14 +174,12 @@ public class TagsParser(string paragraph)
                         continue;
                     ConvertTagToTextTag(currentTag);
                     ProcessWrongTagsOnStack(stack);
-                    
                 }
                 else if (IsIncorrectTagsNesting(stack, currentTag, outsideTag, insideTag))
                 {
                     ConvertTagToTextTag(currentTag);
                     continue;
-                }
-                    
+                }   
             }
             stack.Push(currentTag);
             isTagOpened[currentTag.Type] = true;
@@ -215,16 +191,6 @@ public class TagsParser(string paragraph)
         IsUnprocessedTag(currentTag)
         || IsTextTag(currentTag)
         || IsNotTag(pos);
-
-    private static void ProcessWrongTagsOnStack(Stack<Tag> stack)
-    {
-        while (stack.Count > 0)
-        {
-            var currentTag = stack.Pop();
-            ConvertTagToTextTag(currentTag);
-        }
-    }
-
 
     private void CleanStackOfRemainingTags(Stack<Tag> stack)
     {
@@ -239,12 +205,6 @@ public class TagsParser(string paragraph)
                 ConvertTagToTextTag(currentTag);
             }
         }
-    }
-
-    private static void ConvertTagToTextTag(Tag tag) 
-    {
-        tag.Type = TagType.Text;
-        tag.PairType = PairTokenType.None;
     }
 
     private bool IsPairTags(Tag lastTag, Tag currentTag)
@@ -283,6 +243,21 @@ public class TagsParser(string paragraph)
         ? CreateDefaultTextTag()
         : tags[pos];
 
+    private bool IsTagInListBounds(int pos) => pos - 1 > 0 && pos + 1 < tags.Count;
+
+    private bool IsEndOfParagraph() => currentPos + 1 < paragraph.Length;
+
+    private bool IsNotFirstOpenTag(Tag currentTag, Tag prevTag, Tag nextTag) =>
+        IsOpenTag(prevTag, nextTag) && isTagOpened[currentTag.Type];
+
+    private bool IsNotCloseTagAfterOpenTag(Tag currentTag, Tag prevTag, Tag nextTag) =>
+        IsCloseTag(prevTag, nextTag) && !isTagOpened[currentTag.Type];
+
+    private bool CheckSlashInLink(int slash, int linkTextEnd, int linkStart, int linkEnd) =>
+    (slash == -1 ||
+    (linkTextEnd - slash != 1 && currentPos - slash != 1
+    && linkStart - slash != 1 && linkEnd - slash != 1));
+
     private static bool IsOpenTag(Tag prevTag, Tag nextTag) =>
         IsSpaceChar(prevTag) && !IsSpaceChar(nextTag);
 
@@ -301,12 +276,8 @@ public class TagsParser(string paragraph)
     
     private static bool IsSpaceChar(Tag tag) => tag.TagText == " ";
 
-    private bool IsTagInListBounds(int pos) => pos - 1 > 0 && pos + 1 < tags.Count;
-
     private static bool IsTagsInOneWord(TagInWordInformation currentTag, TagInWordInformation nextTag) =>
         currentTag.WordWithTagIndex != nextTag.WordWithTagIndex;
-
-    private bool IsEndOfParagraph() => currentPos + 1 < paragraph.Length;
 
     private static bool IsUnprocessedTag(Tag tag) => tag.Type == TagType.Escaping || tag.Type == TagType.Link;
     
@@ -315,12 +286,6 @@ public class TagsParser(string paragraph)
     private static bool IsTextInString(List<Tag> stringBetweenTags) => stringBetweenTags.Any(x =>
         char.IsLetter(x.TagText[0]) || char.IsDigit(x.TagText[0])
                                     || x.TagText.Length > 2);
-    
-    private bool IsNotFirstOpenTag(Tag currentTag, Tag prevTag, Tag nextTag) =>
-        IsOpenTag(prevTag, nextTag) && isTagOpened[currentTag.Type];
-    
-    private bool IsNotCloseTagAfterOpenTag(Tag currentTag, Tag prevTag, Tag nextTag) =>
-        IsCloseTag(prevTag, nextTag) && !isTagOpened[currentTag.Type];
 
     private static bool IsIncorrectTagsNesting(
         Stack<Tag> stack, 
@@ -329,10 +294,42 @@ public class TagsParser(string paragraph)
         TagType insideTag
         ) => stack.Last().Type == outsideTag && currentTag.Type == insideTag;
 
-    private bool CheckSlashInLink(int slash, int linkTextEnd, int linkStart, int linkEnd) =>
-    (slash == -1 ||
-    (linkTextEnd - slash != 1 && currentPos - slash != 1
-    && linkStart - slash != 1 && linkEnd - slash != 1));
+    private static Tag CreateDefaultTextTag() =>
+    Tag.Create(TagType.Text, PairTokenType.None, "/");
+
+    private static void ConvertTagToTextTag(Tag tag)
+    {
+        tag.Type = TagType.Text;
+        tag.PairType = PairTokenType.None;
+    }
+
+    private static void ProcessWrongTagsOnStack(Stack<Tag> stack)
+    {
+        while (stack.Count > 0)
+        {
+            var currentTag = stack.Pop();
+            ConvertTagToTextTag(currentTag);
+        }
+    }
+
+    private static bool IsEmTags(
+        TagInWordInformation currentTag,
+        TagInWordInformation? nextTag
+        )
+    {
+        nextTag = nextTag == null
+                    ? new TagInWordInformation(null, false, CreateDefaultTextTag())
+                    : nextTag;
+        if (IsTagsInOneWord(currentTag, nextTag))
+        {
+            if (currentTag.IsTagInWord)
+                ConvertTagToTextTag(currentTag.Tag);
+            if (nextTag.IsTagInWord)
+                ConvertTagToTextTag(nextTag.Tag);
+            return false;
+        }
+        return true;
+    }
 }
 
 
