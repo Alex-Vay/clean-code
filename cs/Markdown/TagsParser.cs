@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-
-namespace Markdown;
+﻿namespace Markdown;
 
 public class TagsParser(string paragraph)
 {
@@ -26,7 +24,7 @@ public class TagsParser(string paragraph)
 
     private void ProcessCharsInsideWords()
     {
-        var tagInformationByType = CreateTagInWorldInfoDict([TagType.Strong, TagType.Em]);
+        var tagInformationByType = CreateTagInWordInfoDict([TagType.Strong, TagType.Em]);
         foreach (var tagGroup in tagInformationByType.GroupBy(tag => tag.Tag.Type))
         {
             var tagsList = tagGroup.ToList();
@@ -42,7 +40,7 @@ public class TagsParser(string paragraph)
         }
     }
            
-    private List<TagInWordInformation> CreateTagInWorldInfoDict(List<TagType> tagTypes)
+    private List<TagInWordInformation> CreateTagInWordInfoDict(List<TagType> tagTypes)
     {
         var tagInformationByType = new List<TagInWordInformation>();
 
@@ -106,8 +104,8 @@ public class TagsParser(string paragraph)
 
     private bool IsNextCharIs(params char[] chars)
     {
-        var nenxChar = paragraph[currentPos + 1];
-        return chars.Contains(nenxChar);
+        var nextChar = paragraph[currentPos + 1];
+        return chars.Contains(nextChar);
     }
 
     private Tag GetTagFromChar() => paragraph[currentPos] switch
@@ -165,26 +163,34 @@ public class TagsParser(string paragraph)
             var currentTag = tags[i];
             if (IsIncorrectTag(currentTag, i)) 
                 continue;
-            if (stack.Count > 0)
-            {
-                if (isTagOpened[currentTag.Type])
-                {
-                    var lastTag = stack.Pop();
-                    if (IsPairTags(lastTag, currentTag)) 
-                        continue;
-                    ConvertTagToTextTag(currentTag);
-                    ProcessWrongTagsOnStack(stack);
-                }
-                else if (IsIncorrectTagsNesting(stack, currentTag, outsideTag, insideTag))
-                {
-                    ConvertTagToTextTag(currentTag);
-                    continue;
-                }   
-            }
+            if (stack.Count > 0 && CheckCorrectPairTag(stack, currentTag, outsideTag, insideTag))
+                continue; 
             stack.Push(currentTag);
             isTagOpened[currentTag.Type] = true;
         }
         CleanStackOfRemainingTags(stack);
+    }
+
+    private bool CheckCorrectPairTag(
+        Stack<Tag> stack, 
+        Tag currentTag, 
+        TagType outsideTag, 
+        TagType insideTag)
+    {
+        if (isTagOpened[currentTag.Type])
+        {
+            var lastTag = stack.Pop();
+            if (IsPairTags(lastTag, currentTag))
+                return true;
+            ConvertTagToTextTag(currentTag);
+            ProcessWrongTagsOnStack(stack);
+        }
+        else if (IsIncorrectTagsNesting(stack, currentTag, outsideTag, insideTag))
+        {
+            ConvertTagToTextTag(currentTag);
+            return true;
+        }
+        return false;
     }
 
     private bool IsIncorrectTag(Tag currentTag, int pos) =>
@@ -254,9 +260,9 @@ public class TagsParser(string paragraph)
         IsCloseTag(prevTag, nextTag) && !isTagOpened[currentTag.Type];
 
     private bool CheckSlashInLink(int slash, int linkTextEnd, int linkStart, int linkEnd) =>
-    (slash == -1 ||
-    (linkTextEnd - slash != 1 && currentPos - slash != 1
-    && linkStart - slash != 1 && linkEnd - slash != 1));
+        (slash == -1 ||
+        (linkTextEnd - slash != 1 && currentPos - slash != 1
+        && linkStart - slash != 1 && linkEnd - slash != 1));
 
     private static bool IsOpenTag(Tag prevTag, Tag nextTag) =>
         IsSpaceChar(prevTag) && !IsSpaceChar(nextTag);
@@ -295,7 +301,7 @@ public class TagsParser(string paragraph)
         ) => stack.Last().Type == outsideTag && currentTag.Type == insideTag;
 
     private static Tag CreateDefaultTextTag() =>
-    Tag.Create(TagType.Text, PairTokenType.None, "/");
+        Tag.Create(TagType.Text, PairTokenType.None, "/");
 
     private static void ConvertTagToTextTag(Tag tag)
     {
@@ -333,10 +339,10 @@ public class TagsParser(string paragraph)
 }
 
 
-public class TagInWordInformation(int? wordWithTagIndex, bool isTagInWord, Tag Tag)
+public class TagInWordInformation(int? wordWithTagIndex, bool isTagInWord, Tag tag)
 {
     public int? WordWithTagIndex { get; set; } = wordWithTagIndex;
     public bool IsTagInWord { get; set; } = isTagInWord;
-    public Tag Tag { get; set; } = Tag;
+    public Tag Tag { get; set; } = tag;
 }
 
